@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "通用接口响应 Mock 侧边栏工具：实时抓包、按 Method/URL/Query/请求头/请求体条件精准匹配并模拟响应体、状态码与延迟。",
   "minimum_chrome_version": "114",
+  "homepage_url": "https://github.com/big-li99/mock-panel",
   "permissions": [
     "storage",
     "unlimitedStorage",

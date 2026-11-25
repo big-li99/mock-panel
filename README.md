@@ -40,8 +40,13 @@
 ```
 mock-panel/
 ├── manifest.json                  MV3 清单（minimum_chrome_version: 114）
+├── LICENSE                        MIT 开源协议
+├── PRIVACY.md                     隐私政策（中英双语，纯离线本地运行声明）
 ├── icons/                         扩展图标（tools/make_icons.py 生成）
 ├── vendor/codemirror/             离线 CodeMirror 5 运行时（MIT）
+├── docs/
+│   └── chrome-web-store.md        Chrome Web Store 上架材料与自动发布指南
+├── store/                         Chrome Web Store 商店截图与宣传图（不进扩展包）
 ├── src/
 │   ├── inject.js                  页面世界脚本（单文件 IIFE）：XHR/fetch 拦截、匹配引擎、混合回放
 │   ├── bridge.js                  隔离世界脚本（单文件 IIFE）：规则过滤同步与抓包开关桥接
@@ -55,13 +60,16 @@ mock-panel/
 │   └── panel/                     侧边栏前端模块（main / rules_view / captures_view / editor_view）
 └── tools/
     ├── make_icons.py              生成 icons/（纯 Python 标准库）
+    ├── generate_store_assets.mjs  生成商店 1280×800 截图与 440×280 宣传图
     ├── package.js                 打白名单发布包 dist/mock-panel-<版本>.zip
+    ├── publish_cws.mjs            Chrome Web Store API v2 自动上传与提交审核脚本
     ├── preview.html               本地排版预览（支持窄屏/宽屏切换）
     ├── test_inject.js             页面世界匹配与 XHR/fetch 混合回放测试
     ├── test_bridge.js             隔离世界过滤、保序、签名去重测试
     ├── test_storage_io.mjs        存储分层、导入导出与抓包字段提取测试
     ├── test_background.mjs        后台 Port 生命周期、抓包缓冲与角标测试
-    └── test_package.js            打包白名单与 zip 完整性测试
+    ├── test_package.js            打包白名单与 zip 完整性测试
+    └── test_publish_cws.mjs       Chrome Web Store 自动发布脚本单元测试
 ```
 
 ## 本地验证与打包
@@ -94,3 +102,8 @@ node tools/package.js
 | `rulebody:<id>` | 响应体文本（允许空字符串，如 `204`） |
 
 > 实时抓包记录**只存在 Service Worker 内存缓冲中**（每个标签页最多 100 条，关闭标签页自动清理），绝不写入 `chrome.storage.local`。
+
+## 发版与 Chrome Web Store 上架
+
+- **GitHub Release**：推送 `v*` 标签（如 `git tag v1.0.0 && git push origin v1.0.0`）自动校验版本、运行全部测试并生成白名单 zip 包发布到 GitHub Releases。
+- **Chrome Web Store 上架**：完整表单填写文案、权限审核理由与 CI 自动发布 Secrets 配置见 [docs/chrome-web-store.md](docs/chrome-web-store.md)，隐私政策见 [PRIVACY.md](PRIVACY.md)。
