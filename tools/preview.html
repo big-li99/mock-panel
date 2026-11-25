@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>MockPanel 侧边栏本地预览</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #1f2430;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: #111827;
+      color: #e5e7eb;
+      font-size: 12px;
+      border-bottom: 1px solid #374151;
+    }
+    .preview-bar button {
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #4b5563;
+      background: #1f2937;
+      color: #e5e7eb;
+      cursor: pointer;
+    }
+    .preview-bar button.active {
+      background: #4f46e5;
+      border-color: #4f46e5;
+      color: #fff;
+    }
+    .stage {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      overflow: auto;
+    }
+    iframe {
+      border: 1px solid #374151;
+      border-radius: 8px;
+      background: #fff;
+      height: 760px;
+      box-shadow: 0 12px 36px rgba(0,0,0,.35);
+      transition: width .15s;
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-bar">
+    <strong>MockPanel 排版预览</strong>
+    <button id="btnNarrow" class="active">窄屏侧边栏 (400px)</button>
+    <button id="btnWide">宽屏双栏 (860px)</button>
+    <span style="color:#9ca3af">提示：需在仓库根目录运行 <code>python3 -m http.server 8000</code> 后访问</span>
+  </div>
+  <div class="stage">
+    <iframe id="frame" style="width: 400px;"></iframe>
+  </div>
+
+  <script>
+    const frame = document.getElementById('frame');
+    document.getElementById('btnNarrow').onclick = function () {
+      frame.style.width = '400px';
+      this.classList.add('active');
+      document.getElementById('btnWide').classList.remove('active');
+    };
+    document.getElementById('btnWide').onclick = function () {
+      frame.style.width = '860px';
+      this.classList.add('active');
+      document.getElementById('btnNarrow').classList.remove('active');
+    };
+
+    const MOCK_SCRIPT = `
+      (function () {
+        const ORIGIN = 'http://localhost:3000';
+        const STORE = {
+          'mockPanel.enabled': true,
+          'mockPanel.ruleIds': ['r_demo_1', 'r_demo_2', 'r_demo_global'],
+          'rule:r_demo_1': {
+            id: 'r_demo_1',
+            name: '用户信息 Mock',
+            scope: ORIGIN,
+            method: 'GET',
+            urlOp: 'equals',
+            urlPattern: '/api/user/profile',
+            conditions: [],
+            status: 200,
+            delayMs: 120,
+            responseHeaders: [],
+            contentType: 'application/json;charset=utf-8',
+            enabled: true,
+            updatedAt: Date.now() - 60000
+          },
+          'rulebody:r_demo_1': JSON.stringify({ code: 0, data: { id: 42, name: 'Mock 用户', role: 'admin' } }, null, 2),
+          'rule:r_demo_2': {
+            id: 'r_demo_2',
+            name: 'GraphQL GetOrders 报错测试',
+            scope: ORIGIN,
+            method: 'POST',
+            urlOp: 'contains',
+            urlPattern: '/graphql',
+            conditions: [
+              { source: 'body', path: 'operationName', op: 'equals', value: 'GetOrders' },
+              { source: 'header', path: 'x-env', op: 'equals', value: 'staging' }
+            ],
+            status: 500,
+            delayMs: 300,
+            responseHeaders: [{ name: 'X-Mock-Source', value: 'MockPanel' }],
+            contentType: 'application/json;charset=utf-8',
+            enabled: true,
+            updatedAt: Date.now() - 120000
+          },
+          'rulebody:r_demo_2': JSON.stringify({ errors: [{ message: '模拟服务端异常' }] }, null, 2),
+          'rule:r_demo_global': {
+            id: 'r_demo_global',
+            name: '全局灰度开关',
+            scope: '*',
+            method: 'GET',
+            urlOp: 'wildcard',
+            urlPattern: '/api/*/flags',
+            conditions: [],
+            status: 200,
+            delayMs: 0,
+            responseHeaders: [],
+            contentType: 'application/json;charset=utf-8',
+            enabled: false,
+            updatedAt: Date.now() - 300000
+          },
+          'rulebody:r_demo_global': JSON.stringify({ newUi: true }, null, 2)
+        };
+
+        const CAPTURES = [
+          {
+            id: 'c_1',
+            origin: ORIGIN,
+            url: ORIGIN + '/api/user/profile?tab=base',
+            path: '/api/user/profile?tab=base',
+            method: 'GET',
+            status: 200,
+            durationMs: 122,
+            size: 72,
+            reqHeaders: { 'x-trace-id': 'abc-123', accept: 'application/json' },
+            reqBody: '',
+            resHeaders: { 'content-type': 'application/json;charset=utf-8' },
+            resBody: JSON.stringify({ code: 0, data: { id: 42, name: 'Mock 用户' } }),
+            mocked: true,
+            matchedRuleId: 'r_demo_1',
+            matchedRuleName: '用户信息 Mock',
+            ts: Date.now() - 5000
+          },
+          {
+            id: 'c_2',
+            origin: ORIGIN,
+            url: ORIGIN + '/graphql',
+            path: '/graphql',
+            method: 'POST',
+            status: 200,
+            durationMs: 48,
+            size: 156,
+            reqHeaders: { 'content-type': 'application/json', 'x-env': 'staging' },
+            reqBody: JSON.stringify({ operationName: 'GetOrders', variables: { page: 1 } }),
+            resHeaders: { 'content-type': 'application/json' },
+            resBody: JSON.stringify({ data: { orders: [{ id: 1001, total: 99.5 }] } }),
+            mocked: false,
+            matchedRuleId: '',
+            matchedRuleName: '',
+            ts: Date.now() - 10000
+          }
+        ];
+
+        const listeners = [];
+        window.chrome = {
+          storage: {
+            local: {
+              get(arg, cb) {
+                let out = {};
+                if (arg === null) out = Object.assign({}, STORE);
+                else if (Array.isArray(arg)) arg.forEach((k) => { if (k in STORE) out[k] = STORE[k]; });
+                else if (typeof arg === 'string') { if (arg in STORE) out[arg] = STORE[arg]; }
+                else Object.keys(arg).forEach((k) => { out[k] = (k in STORE) ? STORE[k] : arg[k]; });
+                cb(out);
+              },
+              set(p, cb) { Object.assign(STORE, p); cb && cb(); },
+              remove(k, cb) { (Array.isArray(k) ? k : [k]).forEach((x) => delete STORE[x]); cb && cb(); }
+            },
+            onChanged: { addListener() {} }
+          },
+          runtime: {
+            lastError: undefined,
+            connect() {
+              const port = {
+                onMessage: { addListener(fn) { listeners.push(fn); } },
+                onDisconnect: { addListener() {} },
+                postMessage(msg) {
+                  if (msg.type === 'setCapturePaused') {
+                    listeners.forEach((fn) => fn({ type: 'captureStateChanged', paused: msg.paused }));
+                  } else if (msg.type === 'clearCaptures') {
+                    listeners.forEach((fn) => fn({ type: 'capturesCleared', tabId: 1 }));
+                  }
+                }
+              };
+              setTimeout(() => {
+                listeners.forEach((fn) => fn({
+                  type: 'init',
+                  tabId: 1,
+                  url: ORIGIN + '/dashboard',
+                  origin: ORIGIN,
+                  paused: false,
+                  captures: CAPTURES
+                }));
+              }, 20);
+              return port;
+            }
+          },
+          tabs: {
+            query(_q, cb) { cb([{ id: 1, url: ORIGIN + '/dashboard' }]); },
+            reload() {}
+          }
+        };
+      })();
+    `;
+
+    const baseHref = new URL('../src/', location.href).href;
+    fetch('../src/sidepanel.html')
+      .then((r) => r.text())
+      .then((html) => {
+        const patched = html.replace(
+          '<head>',
+          '<head>\n  <base href="' + baseHref + '">\n  <script>' + MOCK_SCRIPT + '<\/script>'
+        );
+        frame.srcdoc = patched;
+      });
+  </script>
+</body>
+</html>

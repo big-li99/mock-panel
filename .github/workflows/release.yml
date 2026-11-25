@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 校验 tag 与 manifest 版本一致
+        run: |
+          node -e "const v = require('./manifest.json').version; const tag = process.env.GITHUB_REF_NAME.replace(/^v/, ''); if (v !== tag) { console.error('tag ' + process.env.GITHUB_REF_NAME + ' 与 manifest.json 版本 ' + v + ' 不一致'); process.exit(1); } console.log('版本一致: ' + v);"
+
+      - name: 语法与测试校验
+        run: |
+          for f in src/inject.js src/bridge.js src/background.js src/shared/*.js src/panel/*.js tools/*.js tools/*.mjs; do node --check "$f" || exit 1; done
+          node tools/test_inject.js
+          node tools/test_bridge.js
+          node tools/test_storage_io.mjs
+          node tools/test_background.mjs
+          node tools/test_package.js
+
+      - name: 打包
+        run: node tools/package.js
+
+      - name: 创建 / 更新 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/mock-panel-*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/mock-panel-*.zip --generate-notes
+          fi

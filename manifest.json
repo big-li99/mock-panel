@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "MockPanel 接口模拟",
+  "version": "1.0.0",
+  "description": "通用接口响应 Mock 侧边栏工具：实时抓包、按 Method/URL/Query/请求头/请求体条件精准匹配并模拟响应体、状态码与延迟。",
+  "minimum_chrome_version": "114",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "sidePanel",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "side_panel": {
+    "default_path": "src/sidepanel.html"
+  },
+  "action": {
+    "default_title": "打开 MockPanel 侧边栏",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/inject.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ]
+}

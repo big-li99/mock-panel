@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MockPanel 接口模拟</title>
+  <link rel="stylesheet" href="../vendor/codemirror/codemirror.min.css">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <header class="head">
+    <div class="brand">
+      <span class="dot" id="dot"></span>
+      <span class="name">MockPanel</span>
+    </div>
+    <select id="siteSelect" class="site-select" title="切换查看的站点作用域"></select>
+    <label class="switch" title="全局总开关：关闭后所有 Mock 规则均不生效">
+      <input type="checkbox" id="master" checked>
+      <span class="track"><span class="knob"></span></span>
+    </label>
+    <span class="master-text" id="masterText">已开启</span>
+    <button id="btnReload" class="ghost small" title="刷新当前激活标签页">刷新</button>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button id="tabRules" class="tab active">
+      Mock 规则 <span class="tab-count" id="rulesCount">0</span>
+    </button>
+    <button id="tabCaptures" class="tab">
+      实时抓包 <span class="rec-dot" id="recDot"></span> <span class="tab-count" id="capturesCount">0</span>
+    </button>
+  </nav>
+
+  <main class="workspace">
+
+    <section class="list-pane" id="listPane">
+      <!-- Mock 规则列表视图 -->
+      <div class="pane-view" id="rulesPanel">
+        <div class="toolbar">
+          <input id="ruleSearch" type="search" placeholder="搜索规则名称、URL、Method…" autocomplete="off">
+          <button id="btnNewRule" class="primary small">+ 新建</button>
+          <button id="btnToggleIO" class="ghost small" title="导入或导出规则">导入/导出</button>
+        </div>
+
+        <div class="io-drawer" id="ioDrawer" hidden>
+          <div class="io-row">
+            <span class="io-label">导出：</span>
+            <button id="btnExportSite" class="ghost small">导出当前站点</button>
+            <button id="btnExportAll" class="ghost small">导出全部规则</button>
+          </div>
+          <div class="io-row">
+            <span class="io-label">导入：</span>
+            <label class="radio-lbl"><input type="radio" name="importMode" value="merge" checked> 合并</label>
+            <label class="radio-lbl"><input type="radio" name="importMode" value="replace"> 覆盖全部</label>
+            <label class="file-btn">
+              选择 JSON 文件
+              <input id="importFile" type="file" accept=".json,application/json" hidden>
+            </label>
+          </div>
+          <div class="io-msg" id="ioMsg"></div>
+        </div>
+
+        <div class="sub-strip" id="rulesSortHint">
+          按列表从上到下命中第一条；可拖拽或用 ↑ ↓ 调序
+        </div>
+
+        <div class="list" id="rulesList"></div>
+        <div class="empty-inline" id="rulesEmpty" hidden>
+          <p>当前筛选下还没有 Mock 规则。</p>
+          <p class="muted">点右上角「+ 新建」，或切换到「实时抓包」点选请求一键创建。</p>
+        </div>
+      </div>
+
+      <!-- 实时抓包列表视图 -->
+      <div class="pane-view" id="capturesPanel" hidden>
+        <div class="toolbar">
+          <input id="capSearch" type="search" placeholder="筛选路径、URL、状态码…" autocomplete="off">
+          <select id="capMethod" class="small-select" title="按请求方法筛选">
+            <option value="ALL">全部</option>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+            <option value="PATCH">PATCH</option>
+          </select>
+          <button id="btnPauseCap" class="ghost small">暂停</button>
+          <button id="btnClearCap" class="ghost small">清空</button>
+        </div>
+
+        <div class="sub-strip" id="capStatusStrip">
+          正在监听当前标签页的 XHR / fetch 请求…
+        </div>
+
+        <div class="list" id="capturesList"></div>
+        <div class="empty-inline" id="capturesEmpty" hidden>
+          <p>还没有捕获到请求。</p>
+          <p class="muted">侧边栏保持打开时，当前标签页发出的 XHR / fetch 会实时出现在这里。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="detail-pane" id="detailPane">
+      <div class="detail-empty" id="detailEmpty">
+        <p>选择左侧一条 Mock 规则进行编辑，</p>
+        <p class="muted">或在「实时抓包」中点选任意请求查看详情并一键创建规则。</p>
+      </div>
+
+      <!-- 规则编辑器视图 -->
+      <div class="detail-view" id="editorView" hidden>
+        <div class="detail-head">
+          <button id="btnBackFromEditor" class="ghost small back-btn">← 返回</button>
+          <span class="detail-title" id="editorHeading">编辑规则</span>
+          <span class="badge" id="editorBadge"></span>
+          <span class="spacer"></span>
+          <button id="btnDuplicateRule" class="ghost small" title="复制为新规则">复制</button>
+          <button id="btnDeleteRule" class="danger ghost small" title="删除该规则">删除</button>
+        </div>
+
+        <div class="editor-scroll">
+          <div class="form-grid">
+            <div class="form-row">
+              <input id="fName" class="grow" type="text" placeholder="规则名称（如：用户信息 Mock）" autocomplete="off">
+              <select id="fScope" class="scope-select" title="规则生效范围"></select>
+              <label class="inline-check" title="启用或停用此规则">
+                <input type="checkbox" id="fEnabled" checked> 启用
+              </label>
+            </div>
+
+            <div class="form-row">
+              <select id="fMethod" class="method-select" title="HTTP 方法"></select>
+              <select id="fUrlOp" class="urlop-select" title="URL 匹配方式">
+                <option value="contains">包含</option>
+                <option value="equals">精确</option>
+                <option value="wildcard">通配 *</option>
+                <option value="regex">正则</option>
+              </select>
+              <input id="fUrlPattern" class="grow mono" type="text" placeholder="/api/user 或 https://..." spellcheck="false" autocomplete="off">
+            </div>
+            <div class="field-err" id="fUrlErr" hidden></div>
+          </div>
+
+          <!-- 附加匹配条件 -->
+          <div class="sub-box">
+            <div class="sub-box-head">
+              <span>附加匹配条件 (<b id="fCondCount">0</b>)</span>
+              <span class="sub-box-actions">
+                <button id="btnToggleCapPicker" class="link" hidden>从抓包点选</button>
+                <button id="btnAddCond" class="link">+ 添加条件</button>
+              </span>
+            </div>
+            <div id="editorCapPicker" class="cap-picker" hidden></div>
+            <div id="fCondList" class="cond-list"></div>
+          </div>
+
+          <!-- 响应属性配置 -->
+          <div class="form-row resp-meta-row">
+            <label class="mini-field">
+              <span>状态码</span>
+              <input id="fStatus" type="number" min="100" max="599" list="statusPresets" value="200">
+            </label>
+            <label class="mini-field">
+              <span>延迟 ms</span>
+              <input id="fDelay" type="number" min="0" max="60000" step="50" value="0">
+            </label>
+            <label class="mini-field grow">
+              <span>Content-Type</span>
+              <input id="fContentType" type="text" list="ctPresets" value="application/json;charset=utf-8" spellcheck="false">
+            </label>
+          </div>
+          <datalist id="statusPresets">
+            <option value="200"></option>
+            <option value="201"></option>
+            <option value="204"></option>
+            <option value="400"></option>
+            <option value="401"></option>
+            <option value="403"></option>
+            <option value="404"></option>
+            <option value="422"></option>
+            <option value="429"></option>
+            <option value="500"></option>
+            <option value="502"></option>
+            <option value="503"></option>
+          </datalist>
+          <datalist id="ctPresets">
+            <option value="application/json;charset=utf-8"></option>
+            <option value="text/plain;charset=utf-8"></option>
+            <option value="text/html;charset=utf-8"></option>
+            <option value="application/xml;charset=utf-8"></option>
+          </datalist>
+
+          <!-- 自定义响应头（可折叠） -->
+          <div class="sub-box">
+            <div class="sub-box-head">
+              <button id="btnToggleResHeaders" class="link">▸ 自定义响应头 (<b id="fResHeaderCount">0</b>)</button>
+              <button id="btnAddResHeader" class="link" hidden>+ 添加头</button>
+            </div>
+            <div id="fResHeaderList" class="cond-list" hidden></div>
+          </div>
+
+          <!-- 响应体编辑器 -->
+          <div class="body-bar">
+            <span class="body-title">响应体</span>
+            <span class="spacer"></span>
+            <button id="btnFormatJson" class="ghost small">格式化</button>
+            <button id="btnCopyBody" class="ghost small">复制</button>
+            <button id="btnFindToggle" class="ghost small" title="查找替换（Ctrl/Cmd+F）">查找替换</button>
+          </div>
+
+          <div class="editor-area">
+            <div class="find-widget" id="findBar" hidden>
+              <div class="find-row">
+                <button id="btnFindToggleReplace" class="find-toggle" title="展开 / 收起替换">▸</button>
+                <input id="findText" type="text" placeholder="查找" autocomplete="off" spellcheck="false">
+                <span class="find-info" id="findInfo"></span>
+                <button id="btnFindCase" title="区分大小写">Aa</button>
+                <button id="btnFindPrev" title="上一个（Shift+Enter）">↑</button>
+                <button id="btnFindNext" title="下一个（Enter）">↓</button>
+                <button id="btnFindClose" title="关闭（Esc）">✕</button>
+              </div>
+              <div class="find-row replace-row" id="replaceRow" hidden>
+                <input id="replaceText" type="text" placeholder="替换为" autocomplete="off" spellcheck="false">
+                <button id="btnReplaceOne" title="替换当前匹配">替换</button>
+                <button id="btnReplaceAll" title="全部替换">全部替换</button>
+              </div>
+            </div>
+            <textarea id="fBody" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <div class="detail-footer">
+          <button id="btnSaveEnable" class="primary">保存并启用</button>
+          <button id="btnSaveDraft" class="ghost">保存</button>
+          <span class="msg" id="editorMsg"></span>
+        </div>
+      </div>
+
+      <!-- 抓包详情视图 -->
+      <div class="detail-view" id="captureDetailView" hidden>
+        <div class="detail-head">
+          <button id="btnBackFromCap" class="ghost small back-btn">← 返回</button>
+          <span class="method-pill" id="capDetailMethod">GET</span>
+          <span class="detail-title mono" id="capDetailPath">/api/...</span>
+          <span class="spacer"></span>
+          <button id="btnJumpRule" class="ghost small" hidden>查看命中规则</button>
+          <button id="btnCreateMock" class="primary small">创建 Mock 规则</button>
+        </div>
+
+        <div class="cap-meta" id="capDetailMeta"></div>
+
+        <div class="sub-tabs" id="capSubTabs">
+          <button class="sub-tab active" data-cap-tab="fields">点选条件</button>
+          <button class="sub-tab" data-cap-tab="res">响应体</button>
+          <button class="sub-tab" data-cap-tab="req">请求详情</button>
+        </div>
+
+        <div class="cap-detail-body">
+          <div id="capTabFields" class="cap-tab-pane">
+            <div class="cap-tip">勾选需要的字段，点右上角「创建 Mock 规则」即可自动填入匹配条件：</div>
+            <div id="capFieldsList" class="pick-list"></div>
+          </div>
+
+          <div id="capTabRes" class="cap-tab-pane" hidden>
+            <div class="cap-pane-bar">
+              <span class="muted">响应状态与内容</span>
+              <button id="btnCopyCapRes" class="ghost small">复制响应体</button>
+            </div>
+            <pre class="code-pre" id="capResPre"></pre>
+            <div class="cap-hdr-title">响应头</div>
+            <pre class="code-pre small" id="capResHeadersPre"></pre>
+          </div>
+
+          <div id="capTabReq" class="cap-tab-pane" hidden>
+            <div class="cap-pane-bar">
+              <span class="muted">请求体</span>
+              <button id="btnCopyCapReq" class="ghost small">复制请求体</button>
+            </div>
+            <pre class="code-pre" id="capReqBodyPre"></pre>
+            <div class="cap-hdr-title">请求头</div>
+            <pre class="code-pre small" id="capReqHeadersPre"></pre>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+<script src="../vendor/codemirror/codemirror.min.js"></script>
+<script src="../vendor/codemirror/mode/javascript/javascript.min.js"></script>
+<script src="../vendor/codemirror/addon/selection/active-line.min.js"></script>
+<script src="../vendor/codemirror/addon/edit/matchbrackets.min.js"></script>
+<script src="../vendor/codemirror/addon/edit/closebrackets.min.js"></script>
+<script type="module" src="panel/main.js"></script>
+</body>
+</html>
